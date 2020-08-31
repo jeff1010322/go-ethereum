@@ -38,7 +38,7 @@
 			var op = log.op.toString();
 		}
 		// If a new contract is being created, add to the call stack
-		if (syscall && op == 'CREATE') {
+		if (syscall && (op == 'CREATE' || op == "CREATE2")) {
 			var inOff = log.stack.peek(1).valueOf();
 			var inEnd = inOff + log.stack.peek(2).valueOf();
 
@@ -116,7 +116,7 @@
 			// Pop off the last call and get the execution results
 			var call = this.callstack.pop();
 
-			if (call.type == 'CREATE') {
+			if (call.type == 'CREATE' || call.type == "CREATE2") {
 				// If the call was a CREATE, retrieve the contract address and output code
 				call.gasUsed = '0x' + bigInt(call.gasIn - call.gasCost - log.getGas()).toString(16);
 				delete call.gasIn; delete call.gasCost;
@@ -132,13 +132,12 @@
 				// If the call was a contract call, retrieve the gas usage and output
 				if (call.gas !== undefined) {
 					call.gasUsed = '0x' + bigInt(call.gasIn - call.gasCost + call.gas - log.getGas()).toString(16);
-
-					var ret = log.stack.peek(0);
-					if (!ret.equals(0)) {
-						call.output = toHex(log.memory.slice(call.outOff, call.outOff + call.outLen));
-					} else if (call.error === undefined) {
-						call.error = "internal failure"; // TODO(karalabe): surface these faults somehow
-					}
+				}
+				var ret = log.stack.peek(0);
+				if (!ret.equals(0)) {
+					call.output = toHex(log.memory.slice(call.outOff, call.outOff + call.outLen));
+				} else if (call.error === undefined) {
+					call.error = "internal failure"; // TODO(karalabe): surface these faults somehow
 				}
 				delete call.gasIn; delete call.gasCost;
 				delete call.outOff; delete call.outLen;
@@ -208,7 +207,7 @@
 		} else if (ctx.error !== undefined) {
 			result.error = ctx.error;
 		}
-		if (result.error !== undefined) {
+		if (result.error !== undefined && (result.error !== "execution reverted" || result.output ==="0x")) {
 			delete result.output;
 		}
 		return this.finalize(result);
